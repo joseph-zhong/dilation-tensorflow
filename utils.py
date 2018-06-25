@@ -1,3 +1,4 @@
+import os
 import cv2
 import numpy as np
 from datasets import CONFIG
@@ -26,8 +27,8 @@ def interp_map(prob, zoom, width, height):
 
 
 # predict function, mostly reported as it was in the original repo
-def predict(image, input_tensor, model, ds, sess):
-
+def predict(image, input_tensor, model, ds, sess, test=False):
+    import pdb
     image = image.astype(np.float32) - CONFIG[ds]['mean_pixel']
     conv_margin = CONFIG[ds]['conv_margin']
 
@@ -41,6 +42,11 @@ def predict(image, input_tensor, model, ds, sess):
     image = cv2.copyMakeBorder(image, conv_margin, conv_margin,
                                conv_margin, conv_margin,
                                cv2.BORDER_REFLECT_101)
+    # import matplotlib.pyplot as plt
+    # plt.imshow(image)
+    # plt.show()
+    # np.save('/home/josephz/ws/git/ml/framework/scripts/outs/tf_add_const', image)
+    # exit()
 
     num_tiles_h = image_size[0] // output_height + (1 if image_size[0] % output_height else 0)
     num_tiles_w = image_size[1] // output_width  + (1 if image_size[1] % output_width else 0)
@@ -62,16 +68,51 @@ def predict(image, input_tensor, model, ds, sess):
             model_in[0] = tile
 
             prob = sess.run(model, feed_dict={input_tensor: tile[None, ...]})[0]
-
+            # assert prob.shape == (1024, 1024, 19)
             col_prediction.append(prob)
 
         col_prediction = np.concatenate(col_prediction, axis=1)  # previously axis=2
         row_prediction.append(col_prediction)
+    import pdb
+    # pdb.set_trace()
     prob = np.concatenate(row_prediction, axis=0)
-    if CONFIG[ds]['zoom'] > 1:
-        prob = interp_map(prob, CONFIG[ds]['zoom'], image_size[1], image_size[0])
 
-    prediction = np.argmax(prob, axis=2)
-    color_image = CONFIG[ds]['palette'][prediction.ravel()].reshape(image_size)
+    if test:
+        return prob
+    else:
+        assert prob.shape[:-1] == image_size[:-1]
+        if CONFIG[ds]['zoom'] > 1:
+            prob = interp_map(prob, CONFIG[ds]['zoom'], image_size[1], image_size[0])
+
+        prediction = np.argmax(prob, axis=2)
+        color_image = CONFIG[ds]['palette'][prediction.ravel()].reshape(image_size)
 
     return color_image
+
+# predict function, no tiles
+def predict_no_tiles(image, input_tensor, model, ds, sess, test=False):
+    image = image.astype(np.float32) - CONFIG[ds]['mean_pixel']
+    if not os.path.isfile('/home/josephz/ws/git/ml/framework/scripts/dilation/outs/tf/add_const.npy'):
+        np.save('/home/josephz/ws/git/ml/framework/scripts/dilation/outs/tf/add_const', image)
+    conv_margin = CONFIG[ds]['conv_margin']
+
+    # input_dims = (1,) + CONFIG[ds]['input_shape']
+    # batch_size, input_height, input_width, num_channels = input_dims
+    # model_in = np.zeros(input_dims, dtype=np.float32)
+    image_size = image.shape
+    image = cv2.copyMakeBorder(image, conv_margin, conv_margin,
+        conv_margin, conv_margin,
+        cv2.BORDER_REFLECT_101)
+
+    prob = sess.run(model, feed_dict={input_tensor: image[None, ...]})[0]
+    if test:
+        return prob
+    else:
+        assert prob.shape[:-1] == image_size[:-1]
+        if CONFIG[ds]['zoom'] > 1:
+            prob = interp_map(prob, CONFIG[ds]['zoom'], image_size[1], image_size[0])
+
+        prediction = np.argmax(prob, axis=2)
+        color_image = CONFIG[ds]['palette'][prediction.ravel()].reshape(image_size)
+        return color_image
+

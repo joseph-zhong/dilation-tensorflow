@@ -1,15 +1,16 @@
+#!/usr/bin/env python3
 import tensorflow as tf
 import pickle
 import cv2
 import os
 import os.path as path
-from utils import predict
+from utils import predict, predict_no_tiles
 from model import dilation_model_pretrained
 from datasets import CONFIG
 
 
 if __name__ == '__main__':
-
+    test = True
     # Choose between 'cityscapes' and 'camvid'
     dataset = 'cityscapes'
 
@@ -32,7 +33,10 @@ if __name__ == '__main__':
     with tf.Session() as sess:
 
         # Choose input shape according to dataset characteristics
-        input_h, input_w, input_c = CONFIG[dataset]['input_shape']
+        if not test:
+            input_h, input_w, input_c = CONFIG[dataset]['input_shape']
+        else:
+            input_h, input_w, input_c = (1452, 2292, 3) # REVIEW: dr-eye-ve size.
         input_tensor = tf.placeholder(tf.float32, shape=(None, input_h, input_w, input_c), name='input_placeholder')
 
         # Create pretrained model
@@ -43,6 +47,8 @@ if __name__ == '__main__':
         # Save both graph and weights
         saver = tf.train.Saver(tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES))
         saver.save(sess, path.join(checkpoint_dir, 'dilation'))
+        asdf = saver.save(sess, path.join(checkpoint_dir, 'dilation.ckpt'))
+        print("saved asdf:", asdf)
 
     # Restore both graph and weights from TF checkpoint
     with tf.Session() as sess:
@@ -51,17 +57,46 @@ if __name__ == '__main__':
         saver.restore(sess, tf.train.latest_checkpoint(checkpoint_dir))
 
         graph = tf.get_default_graph()
-        model = graph.get_tensor_by_name('softmax:0')
+        output = 'softmax:0'
+        model = graph.get_tensor_by_name(output)
         model = tf.reshape(model, shape=(1,)+CONFIG[dataset]['output_shape'])
 
         # Read and predict on a test image
         input_image = cv2.imread(input_image_path)
+        # import matplotlib.pyplot as plt
+        # plt.imshow(input_image)
+        # plt.show()
         input_tensor = graph.get_tensor_by_name('input_placeholder:0')
-        predicted_image = predict(input_image, input_tensor, model, dataset, sess)
+        if test:
+            tensors = [n.name for n in tf.get_default_graph().as_graph_def().node]
+            for tensor in tensors:
+                print(tensor)
+            import numpy as np
+            import os
 
-        # Convert colorspace (palette is in RGB) and save prediction result
-        predicted_image = cv2.cvtColor(predicted_image, cv2.COLOR_BGR2RGB)
-        cv2.imwrite(output_image_path, predicted_image)
+            path = '/home/josephz/tmp/data/dr-eyeve/35/frames/0057.png'
+            image = cv2.imread(path)
+
+            # output = 'input_placeholder:0'
+            outputs = ('conv1_1/Relu:0', 'conv1_2/Relu:0', 'pool1/MaxPool:0'
+                       'conv2_1/Relu:0', 'conv2_2/Relu:0',
+                       'conv3_1/Relu:0', 'conv3_2/Relu:0', 'conv3_3/Relu:0',
+                       'conv5_3/Relu:0',
+                       'fc6/Relu:0')
+            for output in outputs:
+                import pdb
+                pdb.set_trace()
+                model = graph.get_tensor_by_name(output)
+                y = predict_no_tiles(image, input_tensor, model, dataset, sess, test=test)
+                outp = os.path.join('/home/josephz/ws/git/ml/framework/scripts/dilation/outs/tf', output.split('/')[0])
+                print("Saving to ", outp)
+                if not os.path.isfile(outp + '.npy'):
+                    np.save(outp, y)
+        else:
+            # Convert colorspace (palette is in RGB) and save prediction result
+            predicted_image = predict(input_image, input_tensor, model, dataset, sess, test=test)
+            predicted_image = cv2.cvtColor(predicted_image, cv2.COLOR_BGR2RGB)
+            cv2.imwrite(output_image_path, predicted_image)
 
 
 

@@ -92,7 +92,8 @@ def dilation_model_pretrained(dataset, input_tensor, w_pretrained, trainable):
         h = conv('ctx_final', h, strides=[1, 1, 1, 1], padding='VALID', add_bias=True, apply_relu=False)
 
         if dataset == 'cityscapes':
-            h = tf.image.resize_bilinear(h, size=(1024, 1024))
+            # h = tf.image.resize_bilinear(h, size=(1024, 1024))
+            h = tf.image.resize_bilinear(h, size=(1080, 1920))
             logits = conv('ctx_upsample', h, strides=[1, 1, 1, 1], padding='SAME', add_bias=False, apply_relu=True)
         else:
             logits = h
