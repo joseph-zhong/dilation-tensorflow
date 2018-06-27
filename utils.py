@@ -108,11 +108,20 @@ def predict_no_tiles(image, input_tensor, model, ds, sess, test=False):
     if test:
         return prob
     else:
+        import pdb
+        pdb.set_trace()
         assert prob.shape[:-1] == image_size[:-1]
         if CONFIG[ds]['zoom'] > 1:
             prob = interp_map(prob, CONFIG[ds]['zoom'], image_size[1], image_size[0])
 
         prediction = np.argmax(prob, axis=2)
         color_image = CONFIG[ds]['palette'][prediction.ravel()].reshape(image_size)
+        outp = '/home/josephz/ws/git/ml/framework/scripts/dilation/outs/tf/semseg.png'
+        if not os.path.isfile(outp):
+            import imageio
+            imageio.imwrite(outp, color_image)
+        import matplotlib.pyplot as plt
+        plt.imshow(color_image)
+        plt.show()
         return color_image
 

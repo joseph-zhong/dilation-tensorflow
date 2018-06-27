@@ -78,20 +78,35 @@ if __name__ == '__main__':
             image = cv2.imread(path)
 
             # output = 'input_placeholder:0'
-            outputs = ('conv1_1/Relu:0', 'conv1_2/Relu:0', 'pool1/MaxPool:0'
+            outputs = ('conv1_1/Relu:0', 'conv1_2/Relu:0',
+                       # 'pool1/MaxPool:0',
                        'conv2_1/Relu:0', 'conv2_2/Relu:0',
-                       'conv3_1/Relu:0', 'conv3_2/Relu:0', 'conv3_3/Relu:0',
+                       # 'conv3_1/Relu:0', 'conv3_2/Relu:0', 'conv3_3/Relu:0',
                        'conv5_3/Relu:0',
-                       'fc6/Relu:0')
+                       'fc6/Relu:0',
+                       'fc7/Relu:0',
+                       'final/Relu:0',
+                       'ctx_pad1_1:0',
+                       'ctx_conv1_1/Relu:0',
+                       'ctx_conv7_1/Relu:0',
+                       'ctx_fc1/Relu:0',
+                       'ctx_final/BiasAdd:0',
+                       'ctx_upsample/Relu:0',
+            )
             for output in outputs:
+                print("Checking", output)
                 import pdb
                 pdb.set_trace()
                 model = graph.get_tensor_by_name(output)
-                y = predict_no_tiles(image, input_tensor, model, dataset, sess, test=test)
                 outp = os.path.join('/home/josephz/ws/git/ml/framework/scripts/dilation/outs/tf', output.split('/')[0])
-                print("Saving to ", outp)
                 if not os.path.isfile(outp + '.npy'):
+                    print("Saving to ", outp)
+                    y = predict_no_tiles(image, input_tensor, model, dataset, sess, test=test)
                     np.save(outp, y)
+
+            out_tensor = graph.get_tensor_by_name('softmax:0')
+            out_tensor = tf.reshape(out_tensor, shape=(1,) + (1080, 1920, 19))
+            y = predict_no_tiles(image, input_tensor, out_tensor, dataset, sess, test=False)
         else:
             # Convert colorspace (palette is in RGB) and save prediction result
             predicted_image = predict(input_image, input_tensor, model, dataset, sess, test=test)
